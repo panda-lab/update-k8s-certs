@@ -1,0 +1,110 @@
+package main
+
+import (
+	"crypto/x509"
+	"fmt"
+	"github.com/pkg/errors"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	kubeadmapi "k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm"
+	certsphase "k8s.io/kubernetes/cmd/kubeadm/app/phases/certs"
+	"k8s.io/kubernetes/cmd/kubeadm/app/util/pkiutil"
+)
+
+const CertificatesDir = "/tmp/pki"
+
+var (
+	csrOnly bool
+	csrDir  string
+)
+
+func main() {
+
+	newCertSubPhases()
+
+}
+
+func newCertSubPhases() {
+
+	// certificate that is preceded by the CAs that sign them.
+	var lastCACert *certsphase.KubeadmCert
+	for _, cert := range certsphase.GetDefaultCertList() {
+		if cert.CAName == "" {
+			runCAPhase(cert)
+
+			lastCACert = cert
+		} else {
+			runCertPhase(cert, lastCACert)
+		}
+	}
+	certsphase.CreateServiceAccountKeyAndPublicKeyFiles(CertificatesDir, x509.RSA)
+}
+
+func runCAPhase(ca *certsphase.KubeadmCert) error {
+
+	if cert, err := pkiutil.TryLoadCertFromDisk(CertificatesDir, ca.BaseName); err == nil {
+		certsphase.CheckCertificatePeriodValidity(ca.BaseName, cert)
+
+		if _, err := pkiutil.TryLoadKeyFromDisk(CertificatesDir, ca.BaseName); err == nil {
+			fmt.Printf("[certs] Using existing %s certificate authority\n", ca.BaseName)
+			return nil
+		}
+		fmt.Printf("[certs] Using existing %s keyless certificate authority\n", ca.BaseName)
+		return nil
+	}
+
+	return CreateCACertAndKeyFiles(ca, &kubeadmapi.InitConfiguration{
+		TypeMeta:             v1.TypeMeta{},
+		ClusterConfiguration: kubeadmapi.ClusterConfiguration{CertificatesDir: CertificatesDir},
+		BootstrapTokens:      nil,
+		NodeRegistration:     kubeadmapi.NodeRegistrationOptions{},
+		LocalAPIEndpoint:     kubeadmapi.APIEndpoint{},
+		CertificateKey:       "",
+	})
+}
+
+func runCertPhase(cert *certsphase.KubeadmCert, caCert *certsphase.KubeadmCert) error {
+
+	if certData, _, err := pkiutil.TryLoadCertAndKeyFromDisk(CertificatesDir, cert.BaseName); err == nil {
+		certsphase.CheckCertificatePeriodValidity(cert.BaseName, certData)
+
+		caCertData, err := pkiutil.TryLoadCertFromDisk(CertificatesDir, caCert.BaseName)
+		if err != nil {
+			return errors.Wrapf(err, "couldn't load CA certificate %s", caCert.Name)
+		}
+
+		certsphase.CheckCertificatePeriodValidity(caCert.BaseName, caCertData)
+
+		if err := certData.CheckSignatureFrom(caCertData); err != nil {
+			return errors.Wrapf(err, "[certs] certificate %s not signed by CA certificate %s", cert.BaseName, caCert.BaseName)
+		}
+
+		fmt.Printf("[certs] Using existing %s certificate and key on disk\n", cert.BaseName)
+		return nil
+	}
+
+	if csrOnly {
+		fmt.Printf("[certs] Generating CSR for %s instead of certificate\n", cert.BaseName)
+		if csrDir == "" {
+			csrDir = CertificatesDir
+		}
+
+		return certsphase.CreateCSR(cert, &kubeadmapi.InitConfiguration{
+			TypeMeta:             v1.TypeMeta{},
+			ClusterConfiguration: kubeadmapi.ClusterConfiguration{CertificatesDir: CertificatesDir},
+			BootstrapTokens:      nil,
+			NodeRegistration:     kubeadmapi.NodeRegistrationOptions{},
+			LocalAPIEndpoint:     kubeadmapi.APIEndpoint{},
+			CertificateKey:       "",
+		}, csrDir)
+	}
+
+	// create the new certificate (or use existing)
+	return CreateCertAndKeyFilesWithCA(cert, caCert, &kubeadmapi.InitConfiguration{
+		TypeMeta:             v1.TypeMeta{},
+		ClusterConfiguration: kubeadmapi.ClusterConfiguration{CertificatesDir: CertificatesDir},
+		BootstrapTokens:      nil,
+		NodeRegistration:     kubeadmapi.NodeRegistrationOptions{},
+		LocalAPIEndpoint:     kubeadmapi.APIEndpoint{},
+		CertificateKey:       "",
+	})
+}
