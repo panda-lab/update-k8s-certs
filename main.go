@@ -114,14 +114,16 @@ func runCertPhase(cert *certsphase.KubeadmCert, caCert *certsphase.KubeadmCert) 
 				PodSubnet:     "172.16.0.0/16",
 				DNSDomain:     "cluster.local",
 			},
-			ControlPlaneEndpoint: "2.2.2.2",
+			ControlPlaneEndpoint: "10.127.253.100",
 			APIServer: kubeadmapi.APIServer{
 				ControlPlaneComponent: kubeadmapi.ControlPlaneComponent{},
-				CertSANs:              []string{"10.1.245.94", "10.1.245.95", "aaaa", "1.2.3.L", "invalid,commas,in,DNS"},
+				CertSANs:              []string{"10.127.253.248", "10.127.253.245", "10.127.253.246", "10.127.253.100"},
 			},
 			Etcd: kubeadmapi.Etcd{
-				Local:    nil,
-				External: nil,
+				Local: &kubeadmapi.LocalEtcd{
+					ServerCertSANs: []string{"10.127.253.248", "10.127.253.245", "10.127.253.246", "10.127.253.100"},
+					PeerCertSANs:   []string{"10.127.253.248", "10.127.253.245", "10.127.253.246", "10.127.253.100"},
+				},
 			},
 		},
 		LocalAPIEndpoint: kubeadmapi.APIEndpoint{AdvertiseAddress: "1.1.1.1"},
