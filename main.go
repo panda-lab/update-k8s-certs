@@ -104,6 +104,9 @@ func runCertPhase(cert *certsphase.KubeadmCert, caCert *certsphase.KubeadmCert) 
 	// create the new certificate (or use existing)
 	return CreateCertAndKeyFilesWithCA(cert, caCert, &kubeadmapi.InitConfiguration{
 		TypeMeta: v1.TypeMeta{},
+		NodeRegistration: kubeadmapi.NodeRegistrationOptions{
+			Name: "etcd1.bonc.local",
+		},
 		ClusterConfiguration: kubeadmapi.ClusterConfiguration{
 			CertificatesDir: CertificatesDir,
 			Networking: kubeadmapi.Networking{
@@ -115,6 +118,10 @@ func runCertPhase(cert *certsphase.KubeadmCert, caCert *certsphase.KubeadmCert) 
 			APIServer: kubeadmapi.APIServer{
 				ControlPlaneComponent: kubeadmapi.ControlPlaneComponent{},
 				CertSANs:              []string{"10.1.245.94", "10.1.245.95", "aaaa", "1.2.3.L", "invalid,commas,in,DNS"},
+			},
+			Etcd: kubeadmapi.Etcd{
+				Local:    nil,
+				External: nil,
 			},
 		},
 		LocalAPIEndpoint: kubeadmapi.APIEndpoint{AdvertiseAddress: "1.1.1.1"},
