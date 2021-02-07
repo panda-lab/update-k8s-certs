@@ -6,6 +6,7 @@ import (
 	"github.com/pkg/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kubeadmapi "k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm"
+	kubeadmconstants "k8s.io/kubernetes/cmd/kubeadm/app/constants"
 	certsphase "k8s.io/kubernetes/cmd/kubeadm/app/phases/certs"
 	"k8s.io/kubernetes/cmd/kubeadm/app/util/pkiutil"
 )
@@ -21,6 +22,24 @@ func main() {
 
 	newCertSubPhases()
 
+	cfg := &kubeadmapi.InitConfiguration{
+		TypeMeta: v1.TypeMeta{},
+
+		ClusterConfiguration: kubeadmapi.ClusterConfiguration{
+			CertificatesDir: CertificatesDir,
+			ClusterName:     "kubernetes",
+		},
+		BootstrapTokens:  nil,
+		NodeRegistration: kubeadmapi.NodeRegistrationOptions{Name: "10.127.253.245"},
+		LocalAPIEndpoint: kubeadmapi.APIEndpoint{
+			AdvertiseAddress: "10.127.253.248",
+			BindPort:         6443,
+		},
+	}
+	err := createKubeConfigFiles("/tmp/pki", cfg, kubeadmconstants.KubeletKubeConfigFileName)
+	if err != nil {
+		fmt.Println(err)
+	}
 }
 
 func newCertSubPhases() {
