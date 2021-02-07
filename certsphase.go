@@ -11,32 +11,6 @@ import (
 	"k8s.io/kubernetes/cmd/kubeadm/app/util/pkiutil"
 )
 
-type configMutatorsFunc func(*kubeadmapi.InitConfiguration, *pkiutil.CertConfig) error
-
-// KubeadmCert represents a certificate that Kubeadm will create to function properly.
-type KubeadmCert struct {
-	Name     string
-	LongName string
-	BaseName string
-	CAName   string
-	// Some attributes will depend on the InitConfiguration, only known at runtime.
-	// These functions will be run in series, passed both the InitConfiguration and a cert Config.
-	configMutators []configMutatorsFunc
-	config         pkiutil.CertConfig
-}
-
-// GetConfig returns the definition for the given cert given the provided InitConfiguration
-func (k *KubeadmCert) GetConfig(ic *kubeadmapi.InitConfiguration) (*pkiutil.CertConfig, error) {
-	for _, f := range k.configMutators {
-		if err := f(ic, &k.config); err != nil {
-			return nil, err
-		}
-	}
-
-	k.config.PublicKeyAlgorithm = ic.ClusterConfiguration.PublicKeyAlgorithm()
-	return &k.config, nil
-}
-
 func CreateCACertAndKeyFiles(certSpec *certsphase.KubeadmCert, cfg *kubeadmapi.InitConfiguration) error {
 	if certSpec.CAName != "" {
 		return errors.Errorf("this function should only be used for CAs, but cert %s has CA %s", certSpec.Name, certSpec.CAName)
@@ -70,10 +44,11 @@ func CreateCertAndKeyFilesWithCA(certSpec *certsphase.KubeadmCert, caCertSpec *c
 	if err != nil {
 		return errors.Wrapf(err, "couldn't load CA certificate %s", caCertSpec.Name)
 	}
-	return certSpec.CreateFromCA(cfg, caCert, caKey)
+
+	return CreateFromCA(certSpec, cfg, caCert, caKey)
 }
 
-func (k *KubeadmCert) CreateFromCA(ic *kubeadmapi.InitConfiguration, caCert *x509.Certificate, caKey crypto.Signer) error {
+func CreateFromCA(k *certsphase.KubeadmCert, ic *kubeadmapi.InitConfiguration, caCert *x509.Certificate, caKey crypto.Signer) error {
 	cfg, err := k.GetConfig(ic)
 	if err != nil {
 		return errors.Wrapf(err, "couldn't create %q certificate", k.Name)

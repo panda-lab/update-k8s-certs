@@ -33,7 +33,10 @@ func newCertSubPhases() {
 
 			lastCACert = cert
 		} else {
-			runCertPhase(cert, lastCACert)
+			err := runCertPhase(cert, lastCACert)
+			if err != nil {
+				fmt.Println(err)
+			}
 		}
 	}
 	certsphase.CreateServiceAccountKeyAndPublicKeyFiles(CertificatesDir, x509.RSA)
@@ -100,11 +103,20 @@ func runCertPhase(cert *certsphase.KubeadmCert, caCert *certsphase.KubeadmCert) 
 
 	// create the new certificate (or use existing)
 	return CreateCertAndKeyFilesWithCA(cert, caCert, &kubeadmapi.InitConfiguration{
-		TypeMeta:             v1.TypeMeta{},
-		ClusterConfiguration: kubeadmapi.ClusterConfiguration{CertificatesDir: CertificatesDir},
-		BootstrapTokens:      nil,
-		NodeRegistration:     kubeadmapi.NodeRegistrationOptions{},
-		LocalAPIEndpoint:     kubeadmapi.APIEndpoint{},
-		CertificateKey:       "",
+		TypeMeta: v1.TypeMeta{},
+		ClusterConfiguration: kubeadmapi.ClusterConfiguration{
+			CertificatesDir: CertificatesDir,
+			Networking: kubeadmapi.Networking{
+				ServiceSubnet: "10.96.0.0/16",
+				PodSubnet:     "172.16.0.0/16",
+				DNSDomain:     "cluster.local",
+			},
+			ControlPlaneEndpoint: "2.2.2.2",
+			APIServer: kubeadmapi.APIServer{
+				ControlPlaneComponent: kubeadmapi.ControlPlaneComponent{},
+				CertSANs:              []string{"10.1.245.94", "10.1.245.95", "aaaa", "1.2.3.L", "invalid,commas,in,DNS"},
+			},
+		},
+		LocalAPIEndpoint: kubeadmapi.APIEndpoint{AdvertiseAddress: "1.1.1.1"},
 	})
 }
