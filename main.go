@@ -30,7 +30,7 @@ func main() {
 			ClusterName:     "kubernetes",
 		},
 		BootstrapTokens:  nil,
-		NodeRegistration: kubeadmapi.NodeRegistrationOptions{Name: "10.127.253.245"},
+		NodeRegistration: kubeadmapi.NodeRegistrationOptions{Name: "kubesphere-1"},
 		LocalAPIEndpoint: kubeadmapi.APIEndpoint{
 			AdvertiseAddress: "10.127.253.248",
 			BindPort:         6443,
